@@ -1,0 +1,16 @@
+set(PROTO_FILE ${CMAKE_CURRENT_SOURCE_DIR}/douyin.proto)
+
+set(PROTO_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${PROTO_GENERATED_DIR})
+
+execute_process(
+    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+        --cpp_out=${PROTO_GENERATED_DIR}
+        --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROTO_FILE}
+)
+
+# Export variables for parent scope
+set(PROTO_SRCS ${PROTO_GENERATED_DIR}/douyin.pb.cc PARENT_SCOPE)
+set(PROTO_HDRS ${PROTO_GENERATED_DIR}/douyin.pb.h PARENT_SCOPE)
+set(PROTO_INCLUDE_DIR ${PROTO_GENERATED_DIR} PARENT_SCOPE)

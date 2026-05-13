@@ -1,0 +1,43 @@
+# Build
+build/
+build_windows/
+*.o
+*.obj
+*.a
+*.lib
+*.dylib
+*.dll
+*.so
+*.exe
+*.app
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Protobuf generated
+proto/generated/
+*.pb.cc
+*.pb.h
+
+# IDE
+.vscode/
+.idea/
+*.sln
+*.vcxproj*
+*.xcodeproj/
+*.xcworkspace/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Qt
+*.pro.user
+*.qmake.stash
+moc_*.cpp
+ui_*.h
+qrc_*.cpp

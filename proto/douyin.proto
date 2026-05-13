@@ -1,0 +1,128 @@
+syntax = "proto3";
+package douyin;
+
+message PushFrame {
+  uint64 logId = 1;
+  string payloadType = 2;
+  bytes payload = 3;
+  int64 responseId = 4;
+  string responseIdStr = 10;
+}
+
+message Response {
+  string collectionType = 2;
+  repeated Message messagesList = 3;
+  string cursor = 4;
+  int64 fetchInterval = 5;
+  int64 now = 6;
+  string internalExt = 7;
+  repeated string fetchType = 8;
+  map<string, string> routeParams = 9;
+  int64 heartbeatDuration = 10;
+  bool needAck = 11;
+  string pushServer = 12;
+  string liveCursor = 13;
+  bool historyNoMore = 14;
+}
+
+message Message {
+  string method = 1;
+  bytes payload = 2;
+  int64 msgId = 3;
+  int32 msgType = 4;
+  int64 offset = 5;
+  bool needWrdsStore = 6;
+  int64 wrdsVersion = 7;
+  string wrdsSubKey = 8;
+}
+
+message User {
+  int64 id = 1;
+  int64 idStr = 2;
+  string nickname = 3;
+  int32 gender = 4;
+  string signature = 5;
+  int32 level = 6;
+  int64 experience = 7;
+  Image avatarThumb = 9;
+  Image avatarMedium = 10;
+  int64 verified = 12;
+  int32 status = 21;
+  int32 followCount = 22;
+  int32 followerCount = 23;
+  int64 totalRechargeDiamond = 27;
+  BadgeStruct badge = 30;
+}
+
+message Image {
+  repeated string urlList = 1;
+  string uri = 2;
+  int64 height = 3;
+  int64 width = 4;
+}
+
+message BadgeStruct {
+  string iconType = 1;
+  string description = 2;
+}
+
+message ChatMessage {
+  User user = 2;
+  string content = 3;
+  bool visibleToSender = 4;
+}
+
+message MemberMessage {
+  User user = 2;
+  int64 memberCount = 4;
+  User operator = 5;
+  bool isSetToAdmin = 6;
+  bool isTopUser = 7;
+  int64 rankScore = 8;
+  int64 topUserNo = 9;
+  int64 enterType = 10;
+  string action = 11;
+}
+
+message GiftMessage {
+  User user = 2;
+  int64 giftId = 3;
+  string giftName = 4;
+  int64 groupCount = 5;
+  int64 repeatCount = 6;
+  int64 comboCount = 7;
+  int64 diamondCount = 8;
+  GiftStruct gift = 11;
+}
+
+message GiftStruct {
+  int64 id = 1;
+  string name = 2;
+  int64 diamondCount = 5;
+  string image = 11;
+}
+
+message LikeMessage {
+  User user = 2;
+  int64 count = 3;
+  int64 total = 4;
+}
+
+message SocialMessage {
+  User user = 2;
+  int64 shareType = 3;
+  int64 action = 4;
+  string shareTarget = 5;
+  int64 followCount = 6;
+}
+
+message FansclubMessage {
+  User user = 2;
+  int32 type = 3;
+  int32 level = 4;
+  string name = 5;
+}
+
+message ControlMessage {
+  int32 action = 1;
+}
