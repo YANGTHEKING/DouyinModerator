@@ -261,19 +261,18 @@ void MainWindow::onLoginClicked() {
             m_eventLog->addLog("登录成功");
             m_settings->saveCookies(cookies);
 
-            // 创建一个隐藏 webview 用于发请求（共享登录 cookie 的同一 profile）
+            // 保留登录对话框的 webview（已有 live.douyin.com 页面 + 登录 session）
             if (!m_requestWebView) {
-                m_requestWebView = new QWebEngineView(this);
+                m_requestWebView = dlg->webView();
+                m_requestWebView->setParent(this);
                 m_requestWebView->setVisible(false);
-                // 使用默认 profile，与 LoginDialog 的 webview 共享 cookies
-                auto* page = new QWebEnginePage(QWebEngineProfile::defaultProfile(), m_requestWebView);
-                m_requestWebView->setPage(page);
-                // 先加载 live.douyin.com 确保 cookie 生效
-                m_requestWebView->load(QUrl("https://live.douyin.com/"));
             }
             m_sender->setWebView(m_requestWebView);
+            dlg->close();
+            dlg->deleteLater();
         });
-    connect(dlg, &QDialog::finished, dlg, &QObject::deleteLater);
+    // 如果用户直接关闭对话框（没登录成功），清理
+    connect(dlg, &QDialog::rejected, dlg, &QObject::deleteLater);
     dlg->show();
 }
 
@@ -317,22 +316,13 @@ void MainWindow::loadSettings() {
         m_timer->addTimedBarrage(b.first, b.second);
     }
 
-    // Restore cookies
+    // Restore cookies（注意：恢复的 cookie 没有 webview 上下文，需重新登录才能发弹幕/点赞）
     auto cookies = m_settings->savedCookies();
     if (cookies.contains("sessionid") || cookies.contains("sessionid_ss")) {
         m_sender->setCookies(cookies);
         m_configPanel->setLoginStatus(true);
-        m_loginBtn->setEnabled(false);
-
-        // 创建隐藏 webview 用于发请求
-        if (!m_requestWebView) {
-            m_requestWebView = new QWebEngineView(this);
-            m_requestWebView->setVisible(false);
-            auto* page = new QWebEnginePage(QWebEngineProfile::defaultProfile(), m_requestWebView);
-            m_requestWebView->setPage(page);
-            m_requestWebView->load(QUrl("https://live.douyin.com/"));
-        }
-        m_sender->setWebView(m_requestWebView);
+        // 不禁用登录按钮，因为恢复的 cookie 缺少 webview 会话上下文，需要重新登录才能发送
+        m_eventLog->addLog("已恢复上次登录信息（需重新登录以启用弹幕/点赞功能）");
     }
 
     auto geometry = m_settings->windowGeometry();

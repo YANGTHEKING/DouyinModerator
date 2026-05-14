@@ -24,6 +24,7 @@ public:
     explicit LoginDialog(QWidget* parent = nullptr);
 
     QMap<QString, QString> cookies() const;
+    QWebEngineView* webView() const { return m_webView; }
 
 signals:
     void loginSuccess(const QMap<QString, QString>& cookies);
