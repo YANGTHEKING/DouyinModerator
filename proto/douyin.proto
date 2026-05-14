@@ -306,3 +306,19 @@ message ControlMessage {
   Common common = 1;
   int32 status = 2;
 }
+
+message GiftSortMessage {
+  Common common = 1;
+  repeated GiftSortItem sortedList = 2;
+  uint64 giftId = 3;
+  string describe = 4;
+  GiftStruct giftItem = 5;
+  User user = 6;
+  uint64 repeatCount = 7;
+  uint64 comboCount = 8;
+}
+
+message GiftSortItem {
+  User user = 1;
+  uint64 diamondCount = 2;
+}

@@ -66,6 +66,23 @@ void MessageRouter::route(const douyin::Message& msg) {
         if (cm.ParseFromArray(payload.data(), payload.size())) {
             emit controlMessage(cm.status());
         }
+    } else if (method == "WebcastGiftSortMessage") {
+        douyin::GiftSortMessage gsm;
+        if (gsm.ParseFromArray(payload.data(), payload.size())) {
+            // GiftSortMessage 是礼物排行榜消息
+            QString giftName = gsm.has_giftitem()
+                ? QString::fromStdString(gsm.giftitem().name())
+                : QString::fromStdString(gsm.describe());
+            int64_t diamonds = gsm.has_giftitem() ? gsm.giftitem().diamondcount() : 0;
+            if (gsm.has_user()) {
+                emit giftMessage(
+                    QString::number(gsm.user().id()),
+                    userName(gsm.user()),
+                    giftName.isEmpty() ? "礼物" : giftName,
+                    diamonds,
+                    gsm.repeatcount() > 0 ? gsm.repeatcount() : 1);
+            }
+        }
     } else {
         emit unknownMessage(QString::fromStdString(method));
     }

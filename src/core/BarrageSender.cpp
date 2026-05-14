@@ -35,43 +35,62 @@ void BarrageSender::sendLike() {
         return;
     }
 
-    // 在 webview 中找到并点击点赞按钮（让抖音 JS 处理请求）
+    // 抖音直播点赞是双击视频画面，模拟双击事件
     QString js = R"JS(
         (function() {
             try {
-                var selectors = [
-                    '[data-e2e="like-icon"]',
-                    '.webcast-chatroom___like-icon',
-                    '[class*="like-icon"]',
-                    '[class*="LikeIcon"]',
-                    '[class*="like-count"]',
-                    '[class*="player-container"] [class*="like"]'
-                ];
-                for (var i = 0; i < selectors.length; i++) {
-                    var el = document.querySelector(selectors[i]);
-                    if (el) {
-                        el.click();
-                        return JSON.stringify({ok: true, selector: selectors[i]});
-                    }
-                }
-                // 找所有包含 "like" 的可点击元素
-                var els = document.querySelectorAll('[class*="like"], [data-e2e*="like"]');
-                if (els.length > 0) {
-                    for (var j = 0; j < els.length; j++) {
-                        if (els[j].offsetParent !== null) { // 可见
-                            els[j].click();
-                            return JSON.stringify({ok: true, selector: 'class-match-' + j});
+                // 找视频播放器/直播画面区域
+                var player = document.querySelector('video')
+                          || document.querySelector('[class*="player-container"]')
+                          || document.querySelector('[class*="PlayerContainer"]')
+                          || document.querySelector('[class*="live-player"]')
+                          || document.querySelector('[class*="xgplayer"]');
+
+                if (!player) {
+                    // 回退：找最大的可见 div
+                    var divs = document.querySelectorAll('div');
+                    var biggest = null;
+                    var maxArea = 0;
+                    for (var i = 0; i < divs.length; i++) {
+                        var r = divs[i].getBoundingClientRect();
+                        var area = r.width * r.height;
+                        if (area > maxArea && r.width > 200 && r.height > 200) {
+                            maxArea = area;
+                            biggest = divs[i];
                         }
                     }
+                    player = biggest;
                 }
-                return JSON.stringify({ok: false, error: '未找到点赞按钮'});
+
+                if (!player) {
+                    return JSON.stringify({ok: false, error: '未找到视频播放区域'});
+                }
+
+                var rect = player.getBoundingClientRect();
+                var x = rect.left + rect.width / 2;
+                var y = rect.top + rect.height / 2;
+
+                // 模拟双击
+                var evtOpts = {bubbles: true, clientX: x, clientY: y, button: 0};
+                player.dispatchEvent(new MouseEvent('mousedown', evtOpts));
+                player.dispatchEvent(new MouseEvent('mouseup', evtOpts));
+                player.dispatchEvent(new MouseEvent('click', evtOpts));
+                // 短暂间隔后第二次点击
+                setTimeout(function() {
+                    player.dispatchEvent(new MouseEvent('mousedown', evtOpts));
+                    player.dispatchEvent(new MouseEvent('mouseup', evtOpts));
+                    player.dispatchEvent(new MouseEvent('click', evtOpts));
+                    player.dispatchEvent(new MouseEvent('dblclick', evtOpts));
+                }, 50);
+
+                return JSON.stringify({ok: true, method: 'double-click', x: x, y: y});
             } catch(e) {
                 return JSON.stringify({ok: false, error: e.toString()});
             }
         })()
     )JS";
 
-    qDebug() << "[Sender] 尝试点击点赞按钮";
+    qDebug() << "[Sender] 尝试双击视频画面点赞";
     m_webView->page()->runJavaScript(js, [this](const QVariant& result) {
         qDebug() << "[Sender] 点赞结果:" << result.toString();
         auto doc = QJsonDocument::fromJson(result.toString().toUtf8());
