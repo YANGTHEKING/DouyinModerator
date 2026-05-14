@@ -20,6 +20,11 @@ void ProtobufDecoder::processFrame(const QByteArray& data) {
     }
 
     std::string payload = frame.payload();
+    if (frameCount <= 3) {
+        qDebug() << "[Decoder] PushFrame: logId:" << frame.logid()
+                 << "payloadType:" << QString::fromStdString(frame.payloadtype())
+                 << "payload size:" << payload.size();
+    }
     if (payload.empty()) {
         // 心跳帧或 ACK 帧，没有 payload
         return;
@@ -51,7 +56,7 @@ void ProtobufDecoder::processFrame(const QByteArray& data) {
         douyin::PushFrame ack;
         ack.set_logid(frame.logid());
         ack.set_payloadtype("ack");
-        ack.set_responseidstr(response.internalext());
+        ack.set_payload(response.internalext());
 
         QByteArray ackData(ack.ByteSizeLong(), 0);
         (void)ack.SerializeToArray(ackData.data(), ackData.size());

@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTimer>
 #include <QUrlQuery>
 #include <QDebug>
 
@@ -224,7 +225,14 @@ void HttpRequester::fetchRoomInfoFromHtml(const QString& liveId, const QString& 
 
 void HttpRequester::fetchSignedWssUrl(const QString& roomId, const QString& userUniqueId,
                                        const QString& apiKey) {
-    qDebug() << "[HTTP] fetchSignedWssUrl, roomId:" << roomId << "uid:" << userUniqueId;
+    fetchSignedWssUrlWithRetry(roomId, userUniqueId, apiKey, 0);
+}
+
+void HttpRequester::fetchSignedWssUrlWithRetry(const QString& roomId, const QString& userUniqueId,
+                                                const QString& apiKey, int retryCount) {
+    static const int MAX_RETRIES = 3;
+    qDebug() << "[HTTP] fetchSignedWssUrl, roomId:" << roomId << "uid:" << userUniqueId
+             << "retry:" << retryCount;
     QUrl url(SIGN_API);
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -241,17 +249,45 @@ void HttpRequester::fetchSignedWssUrl(const QString& roomId, const QString& user
     body["BrowserVersion"] = "120.0.0.0";
 
     auto* reply = m_nam->post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, roomId, userUniqueId, apiKey, retryCount]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             qWarning() << "[HTTP] fetchSignedWssUrl ERROR:" << reply->errorString();
-            emit error("签名API请求失败: " + reply->errorString());
+            if (retryCount < MAX_RETRIES) {
+                int delay = (retryCount + 1) * 5;
+                qDebug() << "[HTTP] Retrying in" << delay << "seconds...";
+                emit statusMessage(QString("签名API请求失败，%1秒后重试 (%2/%3)...")
+                    .arg(delay).arg(retryCount + 1).arg(MAX_RETRIES));
+                QTimer::singleShot(delay * 1000, this, [this, roomId, userUniqueId, apiKey, retryCount]() {
+                    fetchSignedWssUrlWithRetry(roomId, userUniqueId, apiKey, retryCount + 1);
+                });
+            } else {
+                emit error("签名API请求失败: " + reply->errorString());
+            }
             return;
         }
         QByteArray respData = reply->readAll();
         qDebug() << "[HTTP] fetchSignedWssUrl response:" << QString::fromUtf8(respData.left(200));
         auto doc = QJsonDocument::fromJson(respData);
         auto obj = doc.object();
+
+        int code = obj["Code"].toInt(-1);
+        if (code != 0) {
+            QString msg = obj["Msg"].toString("未知错误");
+            qWarning() << "[HTTP] Sign API error, Code:" << code << "Msg:" << msg;
+            if (retryCount < MAX_RETRIES && (msg.contains("busy") || msg.contains("限制"))) {
+                int delay = (retryCount + 1) * 5;
+                qDebug() << "[HTTP] Retrying in" << delay << "seconds...";
+                emit statusMessage(QString("签名API限流，%1秒后重试 (%2/%3)...")
+                    .arg(delay).arg(retryCount + 1).arg(MAX_RETRIES));
+                QTimer::singleShot(delay * 1000, this, [this, roomId, userUniqueId, apiKey, retryCount]() {
+                    fetchSignedWssUrlWithRetry(roomId, userUniqueId, apiKey, retryCount + 1);
+                });
+            } else {
+                emit error("签名API错误: " + msg);
+            }
+            return;
+        }
 
         // 响应结构: {"Code":0,"Data":{"WssUrl":"wss://..."}}
         QJsonObject dataObj = obj.contains("Data") ? obj["Data"].toObject() : obj;

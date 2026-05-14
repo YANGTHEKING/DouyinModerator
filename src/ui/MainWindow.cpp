@@ -198,6 +198,7 @@ void MainWindow::setupConnections() {
             m_statusLabel->setText(" 已连接");
             m_statusLabel->setStyleSheet("color: green;");
             m_sender->setRoomInfo(info.liveId, info.roomId);
+            m_sender->setTtwid(m_conn->ttwid());
             // Start timers if configured
             if (m_configPanel->autoLikeEnabled()) {
                 m_timer->startAutoLike(m_configPanel->autoLikeInterval());

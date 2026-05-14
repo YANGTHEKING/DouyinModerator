@@ -30,6 +30,7 @@ signals:
 
 private:
     void checkLoginStatus();
+    void refreshAllCookies();
 
     QWebEngineView* m_webView;
     QPushButton* m_confirmBtn;

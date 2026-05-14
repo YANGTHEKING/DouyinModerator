@@ -9,6 +9,7 @@ public:
     explicit BarrageSender(QObject* parent = nullptr);
 
     void setCookies(const QMap<QString, QString>& cookies);
+    void setTtwid(const QString& ttwid);
     void setRoomInfo(const QString& liveId, const QString& roomId);
 
     void sendBarrage(const QString& text);
@@ -25,6 +26,7 @@ signals:
 private:
     QNetworkAccessManager* m_nam;
     QMap<QString, QString> m_cookies;
+    QString m_ttwid;
     QString m_liveId;
     QString m_roomId;
 

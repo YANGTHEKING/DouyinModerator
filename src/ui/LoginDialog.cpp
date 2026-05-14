@@ -4,6 +4,9 @@
 #include <QWebEngineProfile>
 #include <QWebEngineCookieStore>
 #include <QWebEngineSettings>
+#include <QUrl>
+#include <QSet>
+#include <QDebug>
 
 LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("登录抖音 — 扫码或输入账号密码登录后点击「确认登录」");
@@ -37,29 +40,35 @@ LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
     bottomLayout->addWidget(m_confirmBtn);
     layout->addWidget(bottomWidget);
 
-    // Cookie 检查定时器（每 2 秒检查一次）
-    m_checkTimer = new QTimer(this);
-    m_checkTimer->setInterval(2000);
-    connect(m_checkTimer, &QTimer::timeout, this, &LoginDialog::checkLoginStatus);
-    m_checkTimer->start();
-
-    // cookieAdded 信号也连接（作为补充）
+    // Cookie 收集：连接 cookieAdded 信号
     auto* cookieStore = m_webView->page()->profile()->cookieStore();
     connect(cookieStore, &QWebEngineCookieStore::cookieAdded, this,
         [this](const QNetworkCookie& cookie) {
             QString name = QString::fromUtf8(cookie.name());
             QString value = QString::fromUtf8(cookie.value());
             m_cookies[name] = value;
+            qDebug() << "[Login] cookieAdded:" << name << "=" << value.left(30) + (value.size() > 30 ? "..." : "");
         });
+
+    // Cookie 检查定时器（每 2 秒检查一次）
+    m_checkTimer = new QTimer(this);
+    m_checkTimer->setInterval(2000);
+    connect(m_checkTimer, &QTimer::timeout, this, &LoginDialog::checkLoginStatus);
+    m_checkTimer->start();
 
     // 确认登录按钮
     connect(m_confirmBtn, &QPushButton::clicked, this, [this]() {
-        checkLoginStatus();
-        if (m_cookies.contains("sessionid") || m_cookies.contains("sessionid_ss")) {
+        // 确认时主动刷新一次所有 cookie
+        refreshAllCookies();
+        qDebug() << "[Login] Confirm clicked, cookies:" << m_cookies.keys();
+        if (m_cookies.contains("sessionid") && !m_cookies["sessionid"].isEmpty()) {
+            emit loginSuccess(m_cookies);
+            accept();
+        } else if (m_cookies.contains("sessionid_ss") && !m_cookies["sessionid_ss"].isEmpty()) {
             emit loginSuccess(m_cookies);
             accept();
         } else {
-            m_statusLabel->setText("未检测到登录状态，请先在页面中完成登录");
+            m_statusLabel->setText("未检测到登录Cookie，请在页面中完成登录后重试");
             m_statusLabel->setStyleSheet("color: red;");
         }
     });
@@ -67,14 +76,23 @@ LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
     m_webView->load(QUrl("https://live.douyin.com/"));
 }
 
-void LoginDialog::checkLoginStatus() {
+void LoginDialog::refreshAllCookies() {
+    // 通过 QWebEngineCookieStore::loadAllCookies 触发 cookieAdded 信号来收集
     auto* cookieStore = m_webView->page()->profile()->cookieStore();
     cookieStore->loadAllCookies();
+}
+
+void LoginDialog::checkLoginStatus() {
+    refreshAllCookies();
 
     // 延迟检查（loadAllCookies 是异步的）
-    QTimer::singleShot(500, this, [this]() {
-        // 通过 cookieAdded 信号收集到的 cookie 已经存在 m_cookies 中
-        bool hasSession = m_cookies.contains("sessionid") || m_cookies.contains("sessionid_ss");
+    QTimer::singleShot(600, this, [this]() {
+        bool hasSession = (m_cookies.contains("sessionid") && !m_cookies["sessionid"].isEmpty())
+                       || (m_cookies.contains("sessionid_ss") && !m_cookies["sessionid_ss"].isEmpty());
+        qDebug() << "[Login] checkLoginStatus: cookies count:" << m_cookies.size()
+                 << "hasSession:" << hasSession
+                 << "keys:" << m_cookies.keys();
+
         if (hasSession) {
             m_statusLabel->setText("已检测到登录！点击「确认登录」完成");
             m_statusLabel->setStyleSheet("color: green; font-weight: bold;");

@@ -19,9 +19,12 @@ signals:
     void roomInfoReady(const RoomInfo& info);
     void wssUrlReady(const QString& wssUrl);
     void error(const QString& message);
+    void statusMessage(const QString& msg);
 
 private:
     void fetchRoomInfoFromHtml(const QString& liveId, const QString& ttwid);
+    void fetchSignedWssUrlWithRetry(const QString& roomId, const QString& userUniqueId,
+                                    const QString& apiKey, int retryCount);
     QNetworkAccessManager* m_nam;
     static constexpr const char* SIGN_API = "https://api.aiobs.cn/Douyin/Douyin/SignWss";
 };

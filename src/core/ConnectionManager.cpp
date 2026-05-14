@@ -25,6 +25,10 @@ void ConnectionManager::connectToRoom(const QString& liveId, const QString& apiK
 
 void ConnectionManager::startConnection(const QString& liveId, const QString& apiKey) {
     qDebug() << "[Conn] startConnection, liveId:" << liveId;
+
+    // 先断开旧的信号连接，防止重复连接导致多次触发
+    QObject::disconnect(m_http, nullptr, this, nullptr);
+
     emit statusMessage("正在获取ttwid...");
     connect(m_http, &HttpRequester::ttwidReady, this, [this, liveId](const QString& ttwid) {
         qDebug() << "[Conn] ttwidReady:" << ttwid.left(20) + "...";
@@ -50,6 +54,8 @@ void ConnectionManager::startConnection(const QString& liveId, const QString& ap
                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         m_socket->open(req);
     });
+
+    connect(m_http, &HttpRequester::statusMessage, this, &ConnectionManager::statusMessage);
 
     connect(m_http, &HttpRequester::error, this, [this](const QString& err) {
         qWarning() << "[Conn] ERROR:" << err;

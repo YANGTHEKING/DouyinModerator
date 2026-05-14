@@ -29,13 +29,8 @@ void MessageRouter::route(const douyin::Message& msg) {
     } else if (method == "WebcastGiftMessage") {
         douyin::GiftMessage gm;
         if (gm.ParseFromArray(payload.data(), payload.size())) {
-            QString giftName;
-            if (gm.has_gift() && !gm.gift().name().empty()) {
-                giftName = QString::fromStdString(gm.gift().name());
-            } else if (!gm.giftname().empty()) {
-                giftName = QString::fromStdString(gm.giftname());
-            }
-            int64_t diamonds = gm.has_gift() ? gm.gift().diamondcount() : gm.diamondcount();
+            QString giftName = QString::fromStdString(gm.gift().name());
+            int64_t diamonds = gm.gift().diamondcount();
             int64_t repeatCount = gm.repeatcount();
             emit giftMessage(
                 QString::number(gm.user().id()),
@@ -64,12 +59,12 @@ void MessageRouter::route(const douyin::Message& msg) {
             emit fansclubMessage(
                 QString::number(fm.user().id()),
                 userName(fm.user()),
-                fm.level());
+                fm.type());
         }
     } else if (method == "WebcastControlMessage") {
         douyin::ControlMessage cm;
         if (cm.ParseFromArray(payload.data(), payload.size())) {
-            emit controlMessage(cm.action());
+            emit controlMessage(cm.status());
         }
     } else {
         emit unknownMessage(QString::fromStdString(method));

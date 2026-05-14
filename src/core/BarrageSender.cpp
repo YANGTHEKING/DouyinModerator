@@ -4,12 +4,17 @@
 #include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDebug>
 
 BarrageSender::BarrageSender(QObject* parent)
     : QObject(parent), m_nam(new QNetworkAccessManager(this)) {}
 
 void BarrageSender::setCookies(const QMap<QString, QString>& cookies) {
     m_cookies = cookies;
+}
+
+void BarrageSender::setTtwid(const QString& ttwid) {
+    m_ttwid = ttwid;
 }
 
 void BarrageSender::setRoomInfo(const QString& liveId, const QString& roomId) {
@@ -26,6 +31,10 @@ QString BarrageSender::buildCookieString() const {
     for (auto it = m_cookies.constBegin(); it != m_cookies.constEnd(); ++it) {
         parts << QString("%1=%2").arg(it.key(), it.value());
     }
+    if (!m_ttwid.isEmpty()) {
+        parts << QString("ttwid=%1").arg(m_ttwid);
+    }
+    // 不要发送硬编码的 __ac_nonce，会让抖音拒绝会话
     return parts.join("; ");
 }
 
@@ -43,6 +52,7 @@ void BarrageSender::postToEndpoint(const QString& path, const QMap<QString, QStr
                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
     req.setRawHeader("cookie", buildCookieString().toUtf8());
     req.setRawHeader("referer", QString("https://live.douyin.com/%1").arg(m_liveId).toUtf8());
+    qDebug() << "[Sender] Cookie:" << buildCookieString();
 
     QUrlQuery query;
     query.addQueryItem("web_rid", m_liveId);
@@ -53,13 +63,17 @@ void BarrageSender::postToEndpoint(const QString& path, const QMap<QString, QStr
     query.addQueryItem("identity", "0");
 
     auto* reply = m_nam->post(req, query.query(QUrl::FullyEncoded).toUtf8());
+    qDebug() << "[Sender] POST" << path << "params:" << query.query(QUrl::FullyEncoded);
     connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[Sender] HTTP error:" << reply->errorString();
             callback(false, reply->errorString());
             return;
         }
-        auto doc = QJsonDocument::fromJson(reply->readAll());
+        QByteArray respData = reply->readAll();
+        qDebug() << "[Sender] Response:" << QString::fromUtf8(respData.left(500));
+        auto doc = QJsonDocument::fromJson(respData);
         auto obj = doc.object();
         int statusCode = obj.value("status_code").toInt(-1);
         if (statusCode == 0) {
