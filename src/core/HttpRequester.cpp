@@ -110,8 +110,12 @@ void HttpRequester::fetchSignedWssUrl(const QString& roomId, const QString& user
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
+    // 使用默认测试 Key（来自 BarrageGrab 项目），用户也可在设置中自定义
+    static const QString DEFAULT_API_KEY = "dfb0f0c8-0a5e-4d2a-b930-5d7c99a23f51";
+    QString key = apiKey.isEmpty() ? DEFAULT_API_KEY : apiKey;
+
     QJsonObject body;
-    body["ApiKey"] = apiKey;
+    body["ApiKey"] = key;
     body["RoomId"] = roomId;
     body["UserUniqueId"] = userUniqueId;
     body["BrowserName"] = "Chrome";

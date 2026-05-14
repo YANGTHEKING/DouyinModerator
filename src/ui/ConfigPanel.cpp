@@ -34,8 +34,8 @@ ConfigPanel::ConfigPanel(QWidget* parent) : QWidget(parent) {
     auto* apiLayout = new QFormLayout(apiGroup);
     m_apiKeyEdit = new QLineEdit(apiGroup);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_apiKeyEdit->setPlaceholderText("签名API的ApiKey");
-    apiLayout->addRow("API Key:", m_apiKeyEdit);
+    m_apiKeyEdit->setPlaceholderText("留空使用默认Key，有自定义Key再填写");
+    apiLayout->addRow("API Key (可选):", m_apiKeyEdit);
     mainLayout->addWidget(apiGroup);
 
     // Auto like

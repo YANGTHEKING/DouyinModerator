@@ -243,10 +243,6 @@ void MainWindow::onConnectClicked() {
     }
 
     QString apiKey = m_configPanel->apiKey();
-    if (apiKey.isEmpty()) {
-        QMessageBox::warning(this, "提示", "请在设置中输入API Key");
-        return;
-    }
 
     m_eventLog->clear();
     m_eventLog->addLog(QString("正在连接直播间: %1").arg(liveId));
