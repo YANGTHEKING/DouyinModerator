@@ -2,6 +2,9 @@
 #include <QDialog>
 #include <QWebEngineView>
 #include <QMap>
+#include <QTimer>
+#include <QPushButton>
+#include <QLabel>
 
 class LoginDialog : public QDialog {
     Q_OBJECT
@@ -14,6 +17,11 @@ signals:
     void loginSuccess(const QMap<QString, QString>& cookies);
 
 private:
+    void checkLoginStatus();
+
     QWebEngineView* m_webView;
+    QPushButton* m_confirmBtn;
+    QLabel* m_statusLabel;
+    QTimer* m_checkTimer;
     QMap<QString, QString> m_cookies;
 };
