@@ -48,6 +48,79 @@ void HttpRequester::fetchTtwid(const QString& liveId) {
 }
 
 void HttpRequester::fetchRoomInfo(const QString& liveId, const QString& ttwid) {
+    // 优先使用抖音 API 接口获取房间信息，比解析 HTML 更可靠
+    QUrl url(QString("https://live.douyin.com/webcast/room/web/enter/?aid=6383&web_rid=%1&device_platform=web&browser_language=zh-CN&browser_platform=MacIntel&browser_name=Chrome&browser_version=120.0.0.0").arg(liveId));
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    QString cookie = QString("ttwid=%1; __ac_nonce=0638a7b21a08e7d9a3").arg(ttwid);
+    req.setRawHeader("cookie", cookie.toUtf8());
+    req.setRawHeader("referer", QString("https://live.douyin.com/%1").arg(liveId).toUtf8());
+
+    auto* reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, liveId, ttwid]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            emit error("获取房间信息失败: " + reply->errorString());
+            return;
+        }
+        QByteArray data = reply->readAll();
+        auto doc = QJsonDocument::fromJson(data);
+        auto root = doc.object();
+
+        RoomInfo info;
+        info.liveId = liveId;
+        info.isStreaming = true;
+
+        // 解析 API JSON 返回
+        if (root.contains("data")) {
+            auto dataObj = root["data"].toObject();
+
+            // 获取 room_id
+            if (dataObj.contains("room_id")) {
+                info.roomId = QString::number(dataObj["room_id"].toVariant().toLongLong());
+            } else if (dataObj.contains("roomId")) {
+                info.roomId = QString::number(dataObj["roomId"].toVariant().toLongLong());
+            }
+
+            // 获取 room_info
+            if (dataObj.contains("room")) {
+                auto roomObj = dataObj["room"].toObject();
+                if (roomObj.contains("title")) {
+                    info.title = roomObj["title"].toString();
+                }
+                if (roomObj.contains("id_str")) {
+                    info.roomId = roomObj["id_str"].toString();
+                } else if (roomObj.contains("id")) {
+                    info.roomId = QString::number(roomObj["id"].toVariant().toLongLong());
+                }
+            }
+
+            // 获取主播信息
+            if (dataObj.contains("anchor")) {
+                auto anchorObj = dataObj["anchor"].toObject();
+                if (anchorObj.contains("nickname")) {
+                    info.streamerName = anchorObj["nickname"].toString();
+                }
+            }
+
+            // 获取 user_unique_id
+            if (dataObj.contains("enter_room_id")) {
+                info.userUniqueId = QString::number(dataObj["enter_room_id"].toVariant().toLongLong());
+            }
+        }
+
+        // 如果 API 接口失败，fallback 到解析 HTML
+        if (info.roomId.isEmpty()) {
+            fetchRoomInfoFromHtml(liveId, ttwid);
+            return;
+        }
+        emit roomInfoReady(info);
+    });
+}
+
+void HttpRequester::fetchRoomInfoFromHtml(const QString& liveId, const QString& ttwid) {
     QUrl url(QString("https://live.douyin.com/%1").arg(liveId));
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader,
@@ -57,7 +130,7 @@ void HttpRequester::fetchRoomInfo(const QString& liveId, const QString& ttwid) {
     req.setRawHeader("cookie", cookie.toUtf8());
 
     auto* reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, liveId, ttwid]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, liveId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             emit error("获取房间信息失败: " + reply->errorString());
@@ -68,18 +141,37 @@ void HttpRequester::fetchRoomInfo(const QString& liveId, const QString& ttwid) {
         info.liveId = liveId;
         info.isStreaming = true;
 
-        // Extract roomId
-        QRegularExpression reRoom("\"roomId\":\"(\\d+)\"");
-        auto m1 = reRoom.match(html);
-        if (m1.hasMatch()) {
-            info.roomId = m1.captured(1);
+        // Extract roomId - 多种格式兼容
+        static const QStringList roomIdPatterns = {
+            "\"roomId\":\"(\\d+)\"",
+            "\"room_id\":\"(\\d+)\"",
+            "\"roomId\":(\\d+)",
+            "\"room_id\":(\\d+)",
+            "roomId[\"']?\\s*[:=]\\s*[\"']?(\\d+)",
+            "room_id[\"']?\\s*[:=]\\s*[\"']?(\\d+)",
+        };
+        for (const auto& pat : roomIdPatterns) {
+            QRegularExpression re(pat);
+            auto m = re.match(html);
+            if (m.hasMatch()) {
+                info.roomId = m.captured(1);
+                break;
+            }
         }
 
         // Extract user_unique_id
-        QRegularExpression reUid("\"user_unique_id\":\"(\\d+)\"");
-        auto m2 = reUid.match(html);
-        if (m2.hasMatch()) {
-            info.userUniqueId = m2.captured(1);
+        static const QStringList uidPatterns = {
+            "\"user_unique_id\":\"(\\d+)\"",
+            "\"user_unique_id\":(\\d+)",
+            "user_unique_id[\"']?\\s*[:=]\\s*[\"']?(\\d+)",
+        };
+        for (const auto& pat : uidPatterns) {
+            QRegularExpression re(pat);
+            auto m = re.match(html);
+            if (m.hasMatch()) {
+                info.userUniqueId = m.captured(1);
+                break;
+            }
         }
 
         // Extract title

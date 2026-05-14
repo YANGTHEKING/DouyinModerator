@@ -21,6 +21,7 @@ signals:
     void error(const QString& message);
 
 private:
+    void fetchRoomInfoFromHtml(const QString& liveId, const QString& ttwid);
     QNetworkAccessManager* m_nam;
     static constexpr const char* SIGN_API = "https://api.aiobs.cn/Douyin/Douyin/SignWss";
 };
