@@ -200,6 +200,14 @@ void MainWindow::setupConnections() {
             m_statusLabel->setStyleSheet("color: green;");
             m_sender->setRoomInfo(info.liveId, info.roomId);
             m_sender->setTtwid(m_conn->ttwid());
+
+            // 让 webview 导航到直播间页面（保持 session 活跃，点赞/弹幕按钮可用）
+            if (m_requestWebView) {
+                QString roomUrl = QString("https://live.douyin.com/%1").arg(info.liveId);
+                qDebug() << "[Main] 导航 webview 到直播间:" << roomUrl;
+                m_requestWebView->load(QUrl(roomUrl));
+            }
+
             // Start timers if configured
             if (m_configPanel->autoLikeEnabled()) {
                 m_timer->startAutoLike(m_configPanel->autoLikeInterval());
