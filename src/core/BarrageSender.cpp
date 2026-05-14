@@ -29,12 +29,13 @@ bool BarrageSender::isLoggedIn() const {
 QString BarrageSender::buildCookieString() const {
     QStringList parts;
     for (auto it = m_cookies.constBegin(); it != m_cookies.constEnd(); ++it) {
+        // 跳过 ttwid，用 setTtwid() 设置的最新值（避免重复）
+        if (it.key() == "ttwid") continue;
         parts << QString("%1=%2").arg(it.key(), it.value());
     }
     if (!m_ttwid.isEmpty()) {
         parts << QString("ttwid=%1").arg(m_ttwid);
     }
-    // 不要发送硬编码的 __ac_nonce，会让抖音拒绝会话
     return parts.join("; ");
 }
 
