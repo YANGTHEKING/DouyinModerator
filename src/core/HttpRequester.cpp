@@ -230,7 +230,7 @@ void HttpRequester::fetchSignedWssUrl(const QString& roomId, const QString& user
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     // 使用默认测试 Key（来自 BarrageGrab 项目），用户也可在设置中自定义
-    static const QString DEFAULT_API_KEY = "dfb0f0c8-0a5e-4d2a-b930-5d7c99a23f51";
+    static const QString DEFAULT_API_KEY = "test-apikey-de9991ea-bf2b-454c-7982-adddfe0581ac-96c0642e-7d1d-87a7-08b2-eff81edae4d3";
     QString key = apiKey.isEmpty() ? DEFAULT_API_KEY : apiKey;
 
     QJsonObject body;
@@ -252,10 +252,14 @@ void HttpRequester::fetchSignedWssUrl(const QString& roomId, const QString& user
         qDebug() << "[HTTP] fetchSignedWssUrl response:" << QString::fromUtf8(respData.left(200));
         auto doc = QJsonDocument::fromJson(respData);
         auto obj = doc.object();
-        if (obj.contains("WssUrl")) {
-            emit wssUrlReady(obj["WssUrl"].toString());
-        } else if (obj.contains("wssUrl")) {
-            emit wssUrlReady(obj["wssUrl"].toString());
+
+        // 响应结构: {"Code":0,"Data":{"WssUrl":"wss://..."}}
+        QJsonObject dataObj = obj.contains("Data") ? obj["Data"].toObject() : obj;
+        if (dataObj.contains("WssUrl")) {
+            qDebug() << "[HTTP] WssUrl obtained successfully";
+            emit wssUrlReady(dataObj["WssUrl"].toString());
+        } else if (dataObj.contains("wssUrl")) {
+            emit wssUrlReady(dataObj["wssUrl"].toString());
         } else {
             qWarning() << "[HTTP] fetchSignedWssUrl: unexpected response format";
             emit error("签名API返回格式异常: " + QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));

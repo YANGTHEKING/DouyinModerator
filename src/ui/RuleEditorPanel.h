@@ -32,4 +32,5 @@ private:
     QPushButton* m_removeBtn;
     QList<AutoResponseRule> m_rules;
     EmojiResolver* m_emojiResolver;
+    bool m_refreshing = false;
 };

@@ -20,12 +20,12 @@ struct AutoResponseRule {
     QString matchPattern;     // 礼物名或聊天关键词，"*"表示匹配全部
     QString responseText;     // 回复模板，支持 {user} {gift} {count} {emoji:xxx}
     int cooldownSeconds = 5;
-    bool enabled = true;
+    bool enabled = false;
 
     static AutoResponseRule create(const QString& name, TriggerType trigger,
                                    const QString& pattern, const QString& response, int cooldown = 5) {
         return {QUuid::createUuid().toString(QUuid::WithoutBraces), name,
-                trigger, pattern, response, cooldown, true};
+                trigger, pattern, response, cooldown, false};
     }
 
     static QString triggerTypeName(TriggerType t) {

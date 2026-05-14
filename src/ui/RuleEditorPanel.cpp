@@ -42,6 +42,16 @@ RuleEditorPanel::RuleEditorPanel(EmojiResolver* emoji, QWidget* parent)
     connect(m_editBtn, &QPushButton::clicked, this, &RuleEditorPanel::editRule);
     connect(m_removeBtn, &QPushButton::clicked, this, &RuleEditorPanel::removeRule);
     connect(m_table, &QTableWidget::cellDoubleClicked, this, &RuleEditorPanel::editRule);
+    connect(m_table, &QTableWidget::cellChanged, this, [this](int row, int col) {
+        if (m_refreshing) return;
+        if (col == 4 && row >= 0 && row < m_rules.size()) {
+            auto* item = m_table->item(row, col);
+            if (item) {
+                m_rules[row].enabled = (item->checkState() == Qt::Checked);
+                emit rulesChanged();
+            }
+        }
+    });
 }
 
 void RuleEditorPanel::setRules(const QList<AutoResponseRule>& rules) {
@@ -57,6 +67,7 @@ void RuleEditorPanel::addRuleFromTable(const AutoResponseRule& rule) {
 }
 
 void RuleEditorPanel::refreshTable() {
+    m_refreshing = true;
     m_table->setRowCount(0);
     for (int i = 0; i < m_rules.size(); ++i) {
         const auto& r = m_rules[i];
@@ -70,6 +81,7 @@ void RuleEditorPanel::refreshTable() {
         checkItem->setText(r.enabled ? "是" : "否");
         m_table->setItem(i, 4, checkItem);
     }
+    m_refreshing = false;
 }
 
 void RuleEditorPanel::addRule() {
