@@ -3,6 +3,7 @@
 #include <QNetworkCookie>
 #include <QWebEngineProfile>
 #include <QWebEngineCookieStore>
+#include <QWebEngineSettings>
 
 LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("登录抖音 — 扫码或输入账号密码登录后点击「确认登录」");
@@ -13,6 +14,11 @@ LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
     layout->setSpacing(0);
 
     m_webView = new QWebEngineView(this);
+    // 使用自定义页面禁止弹窗
+    auto* page = new NoPopupWebEnginePage(QWebEngineProfile::defaultProfile(), m_webView);
+    m_webView->setPage(page);
+    // 禁止 JavaScript 打开新窗口
+    m_webView->settings()->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, false);
     layout->addWidget(m_webView);
 
     // 底部状态栏

@@ -1,10 +1,22 @@
 #pragma once
 #include <QDialog>
 #include <QWebEngineView>
+#include <QWebEnginePage>
 #include <QMap>
 #include <QTimer>
 #include <QPushButton>
 #include <QLabel>
+
+// 自定义页面：禁止弹窗和外部协议跳转（防止 bitbrowser 等提示）
+class NoPopupWebEnginePage : public QWebEnginePage {
+    Q_OBJECT
+public:
+    using QWebEnginePage::QWebEnginePage;
+protected:
+    QWebEnginePage* createWindow(QWebEnginePage::WebWindowType) override {
+        return nullptr; // 阻止所有弹窗
+    }
+};
 
 class LoginDialog : public QDialog {
     Q_OBJECT
