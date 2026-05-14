@@ -86,7 +86,7 @@ void MessageRouter::route(const douyin::Message& msg) {
             }
         } else {
             qWarning() << "[Router] GiftSortMessage 解析失败, payload size:" << payload.size()
-                        << "first bytes:" << payload.left(16).toHex();
+                        << "hex:" << payload.toHex();
             emit unknownMessage(QString::fromStdString(method));
         }
     } else {

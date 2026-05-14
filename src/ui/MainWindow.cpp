@@ -201,10 +201,54 @@ void MainWindow::setupConnections() {
             m_sender->setRoomInfo(info.liveId, info.roomId);
             m_sender->setTtwid(m_conn->ttwid());
 
-            // 让 webview 导航到直播间页面（保持 session 活跃，点赞/弹幕按钮可用）
+            // 让 webview 导航到直播间页面
             if (m_requestWebView) {
                 QString roomUrl = QString("https://live.douyin.com/%1").arg(info.liveId);
                 qDebug() << "[Main] 导航 webview 到直播间:" << roomUrl;
+                connect(m_requestWebView, &QWebEngineView::loadFinished, this,
+                    [this](bool ok) {
+                        if (!ok) return;
+                        // 页面加载完成后注入 XHR 拦截器
+                        qDebug() << "[Main] 页面加载完成，注入 XHR 拦截器";
+                        QString interceptor = R"JS(
+                            (function() {
+                                var origSend = XMLHttpRequest.prototype.send;
+                                var origOpen = XMLHttpRequest.prototype.open;
+                                XMLHttpRequest.prototype.open = function(method, url) {
+                                    this._url = url;
+                                    this._method = method;
+                                    return origOpen.apply(this, arguments);
+                                };
+                                XMLHttpRequest.prototype.send = function(body) {
+                                    if (this._url && this._url.indexOf('/webcast/') !== -1) {
+                                        console.log('[INTERCEPT]', this._method, this._url, 'body:', body ? body.substring(0, 200) : '');
+                                        try {
+                                            // 通过 console.log 输出，QWebEngineView 可以捕获
+                                            window._lastIntercepted = {url: this._url, method: this._method, body: body};
+                                        } catch(e) {}
+                                    }
+                                    return origSend.apply(this, arguments);
+                                };
+                                return 'XHR interceptor installed';
+                            })()
+                        )JS";
+                        m_requestWebView->page()->runJavaScript(interceptor, [](const QVariant& r) {
+                            qDebug() << "[Main]" << r.toString();
+                        });
+
+                        // 定期检查拦截结果
+                        QTimer* pollTimer = new QTimer(this);
+                        connect(pollTimer, &QTimer::timeout, this, [this, pollTimer]() {
+                            m_requestWebView->page()->runJavaScript(
+                                "(function(){ var r = window._lastIntercepted; window._lastIntercepted = null; return r ? JSON.stringify(r) : null; })()",
+                                [pollTimer](const QVariant& r) {
+                                    if (!r.isNull() && r.isValid()) {
+                                        qDebug() << "[Main] 捕获到 API 请求:" << r.toString();
+                                    }
+                                });
+                        });
+                        pollTimer->start(1000);
+                    }, Qt::SingleShotConnection);
                 m_requestWebView->load(QUrl(roomUrl));
             }
 
@@ -269,15 +313,14 @@ void MainWindow::onLoginClicked() {
             m_eventLog->addLog("登录成功");
             m_settings->saveCookies(cookies);
 
-            // 保留登录对话框的 webview（已有 live.douyin.com 页面 + 登录 session）
+            // 保留 webview 可见，方便手动操作和调试
             if (!m_requestWebView) {
                 m_requestWebView = dlg->webView();
                 m_requestWebView->setParent(this);
-                m_requestWebView->setVisible(false);
+                // 不隐藏 webview
             }
             m_sender->setWebView(m_requestWebView);
-            dlg->close();
-            dlg->deleteLater();
+            // 不关闭对话框，让用户继续在 webview 中操作
         });
     // 如果用户直接关闭对话框（没登录成功），清理
     connect(dlg, &QDialog::rejected, dlg, &QObject::deleteLater);
