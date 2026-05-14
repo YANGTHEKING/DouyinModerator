@@ -35,4 +35,6 @@ private:
     // 通过 webview JS 发送 POST 请求
     void postViaWebView(const QString& path, const QMap<QString, QString>& params,
                         std::function<void(bool, const QString&)> callback);
+    void doActualPost(const QString& path, const QMap<QString, QString>& params,
+                      std::function<void(bool, const QString&)> callback);
 };
