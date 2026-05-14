@@ -73,27 +73,23 @@ void BarrageSender::doActualPost(const QString& path, const QMap<QString, QStrin
     // URL 编码 body 避免 JS 注入问题
     QString encodedBody = QString::fromUtf8(QUrl::toPercentEncoding(query.query(QUrl::FullyEncoded)));
 
-    // 先简单检查当前页面是否加载完成
-    QString checkJs = QString("document.readyState");
-
-    m_webView->page()->runJavaScript(checkJs, [this, path, encodedBody, callback](const QVariant& readyState) {
-        qDebug() << "[Sender] document.readyState:" << readyState.toString();
+    // 先检查 webview 内的状态和 cookie
+    QString debugJs = "JSON.stringify({readyState: document.readyState, url: location.href, cookies: document.cookie})";
+    m_webView->page()->runJavaScript(debugJs, [this, path, encodedBody, callback](const QVariant& debugResult) {
+        qDebug() << "[Sender] WebView debug:" << debugResult.toString().left(500);
 
         QString jsCode = QString(R"JS(
             (function() {
                 try {
-                    if (typeof fetch === 'undefined') {
-                        return '{"error":"fetch not available"}';
-                    }
                     var body = decodeURIComponent('%1');
                     var xhr = new XMLHttpRequest();
-                    xhr.open('POST', '%2', false);  // synchronous
+                    xhr.open('POST', '%2', false);
                     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                     xhr.withCredentials = true;
                     xhr.send(body);
                     return xhr.responseText;
                 } catch(e) {
-                    return '{"error":"' + e.toString() + '"}';
+                    return JSON.stringify({error: e.toString()});
                 }
             })()
         )JS").arg(encodedBody, path);
