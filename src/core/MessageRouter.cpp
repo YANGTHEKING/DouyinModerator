@@ -1,4 +1,5 @@
 #include "MessageRouter.h"
+#include <QDebug>
 
 MessageRouter::MessageRouter(QObject* parent) : QObject(parent) {}
 
@@ -67,9 +68,10 @@ void MessageRouter::route(const douyin::Message& msg) {
             emit controlMessage(cm.status());
         }
     } else if (method == "WebcastGiftSortMessage") {
+        // proto 定义可能不匹配，解析失败时输出日志方便调试
         douyin::GiftSortMessage gsm;
         if (gsm.ParseFromArray(payload.data(), payload.size())) {
-            // GiftSortMessage 是礼物排行榜消息
+            // 解析成功，作为礼物事件处理
             QString giftName = gsm.has_giftitem()
                 ? QString::fromStdString(gsm.giftitem().name())
                 : QString::fromStdString(gsm.describe());
@@ -82,6 +84,10 @@ void MessageRouter::route(const douyin::Message& msg) {
                     diamonds,
                     gsm.repeatcount() > 0 ? gsm.repeatcount() : 1);
             }
+        } else {
+            qWarning() << "[Router] GiftSortMessage 解析失败, payload size:" << payload.size()
+                        << "first bytes:" << payload.left(16).toHex();
+            emit unknownMessage(QString::fromStdString(method));
         }
     } else {
         emit unknownMessage(QString::fromStdString(method));
