@@ -20,6 +20,7 @@
 #include <QStatusBar>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QWebEngineProfile>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_settings = new AppSettings(this);
@@ -253,12 +254,24 @@ void MainWindow::onConnectClicked() {
 void MainWindow::onLoginClicked() {
     auto* dlg = new LoginDialog(this);
     connect(dlg, &LoginDialog::loginSuccess, this,
-        [this](const QMap<QString, QString>& cookies) {
+        [this, dlg](const QMap<QString, QString>& cookies) {
             m_sender->setCookies(cookies);
             m_configPanel->setLoginStatus(true);
             m_loginBtn->setEnabled(false);
             m_eventLog->addLog("登录成功");
             m_settings->saveCookies(cookies);
+
+            // 创建一个隐藏 webview 用于发请求（共享登录 cookie 的同一 profile）
+            if (!m_requestWebView) {
+                m_requestWebView = new QWebEngineView(this);
+                m_requestWebView->setVisible(false);
+                // 使用默认 profile，与 LoginDialog 的 webview 共享 cookies
+                auto* page = new QWebEnginePage(QWebEngineProfile::defaultProfile(), m_requestWebView);
+                m_requestWebView->setPage(page);
+                // 先加载 live.douyin.com 确保 cookie 生效
+                m_requestWebView->load(QUrl("https://live.douyin.com/"));
+            }
+            m_sender->setWebView(m_requestWebView);
         });
     connect(dlg, &QDialog::finished, dlg, &QObject::deleteLater);
     dlg->show();
@@ -266,6 +279,7 @@ void MainWindow::onLoginClicked() {
 
 void MainWindow::onLogoutClicked() {
     m_sender->setCookies({});
+    m_sender->setWebView(nullptr);
     m_configPanel->setLoginStatus(false);
     m_loginBtn->setEnabled(true);
     m_eventLog->addLog("已退出登录");
@@ -309,6 +323,16 @@ void MainWindow::loadSettings() {
         m_sender->setCookies(cookies);
         m_configPanel->setLoginStatus(true);
         m_loginBtn->setEnabled(false);
+
+        // 创建隐藏 webview 用于发请求
+        if (!m_requestWebView) {
+            m_requestWebView = new QWebEngineView(this);
+            m_requestWebView->setVisible(false);
+            auto* page = new QWebEnginePage(QWebEngineProfile::defaultProfile(), m_requestWebView);
+            m_requestWebView->setPage(page);
+            m_requestWebView->load(QUrl("https://live.douyin.com/"));
+        }
+        m_sender->setWebView(m_requestWebView);
     }
 
     auto geometry = m_settings->windowGeometry();

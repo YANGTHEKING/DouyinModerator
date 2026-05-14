@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QComboBox>
+#include <QWebEngineView>
 
 class ConnectionManager;
 class ProtobufDecoder;
@@ -63,4 +64,7 @@ private:
     QPushButton* m_loginBtn;
     QLabel* m_statusLabel;
     QLabel* m_viewerLabel;
+
+    // 用于发请求的隐藏 webview（共享 login cookies）
+    QWebEngineView* m_requestWebView = nullptr;
 };

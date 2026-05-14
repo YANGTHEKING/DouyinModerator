@@ -1,13 +1,10 @@
 #include "BarrageSender.h"
-#include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrlQuery>
 #include <QDebug>
 
-BarrageSender::BarrageSender(QObject* parent)
-    : QObject(parent), m_nam(new QNetworkAccessManager(this)) {}
+BarrageSender::BarrageSender(QObject* parent) : QObject(parent) {}
 
 void BarrageSender::setCookies(const QMap<QString, QString>& cookies) {
     m_cookies = cookies;
@@ -22,39 +19,22 @@ void BarrageSender::setRoomInfo(const QString& liveId, const QString& roomId) {
     m_roomId = roomId;
 }
 
+void BarrageSender::setWebView(QWebEngineView* webView) {
+    m_webView = webView;
+}
+
 bool BarrageSender::isLoggedIn() const {
     return m_cookies.contains("sessionid") && !m_cookies["sessionid"].isEmpty();
 }
 
-QString BarrageSender::buildCookieString() const {
-    QStringList parts;
-    for (auto it = m_cookies.constBegin(); it != m_cookies.constEnd(); ++it) {
-        // 跳过 ttwid，用 setTtwid() 设置的最新值（避免重复）
-        if (it.key() == "ttwid") continue;
-        parts << QString("%1=%2").arg(it.key(), it.value());
-    }
-    if (!m_ttwid.isEmpty()) {
-        parts << QString("ttwid=%1").arg(m_ttwid);
-    }
-    return parts.join("; ");
-}
-
-void BarrageSender::postToEndpoint(const QString& path, const QMap<QString, QString>& params,
+void BarrageSender::postViaWebView(const QString& path, const QMap<QString, QString>& params,
                                     std::function<void(bool, const QString&)> callback) {
-    if (!isLoggedIn()) {
-        callback(false, "未登录");
+    if (!m_webView) {
+        callback(false, "WebView 未初始化，请先登录");
         return;
     }
-    QUrl url(path);
-    QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    req.setHeader(QNetworkRequest::UserAgentHeader,
-                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    req.setRawHeader("cookie", buildCookieString().toUtf8());
-    req.setRawHeader("referer", QString("https://live.douyin.com/%1").arg(m_liveId).toUtf8());
-    qDebug() << "[Sender] Cookie:" << buildCookieString();
 
+    // 构建 POST body
     QUrlQuery query;
     query.addQueryItem("web_rid", m_liveId);
     query.addQueryItem("room_id", m_roomId);
@@ -63,24 +43,47 @@ void BarrageSender::postToEndpoint(const QString& path, const QMap<QString, QStr
     }
     query.addQueryItem("identity", "0");
 
-    auto* reply = m_nam->post(req, query.query(QUrl::FullyEncoded).toUtf8());
-    qDebug() << "[Sender] POST" << path << "params:" << query.query(QUrl::FullyEncoded);
-    connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            qWarning() << "[Sender] HTTP error:" << reply->errorString();
-            callback(false, reply->errorString());
+    QString body = query.query(QUrl::FullyEncoded);
+    QString jsCode = QString(R"(
+        (async function() {
+            try {
+                const resp = await fetch('%1', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': 'https://live.douyin.com/%2'
+                    },
+                    body: '%3',
+                    credentials: 'include'
+                });
+                const data = await resp.json();
+                return JSON.stringify(data);
+            } catch(e) {
+                return JSON.stringify({error: e.toString()});
+            }
+        })()
+    )").arg(path, m_liveId, body);
+
+    qDebug() << "[Sender] POST via JS:" << path << "body:" << body.left(200);
+
+    m_webView->page()->runJavaScript(jsCode, [callback, path](const QVariant& result) {
+        QString respStr = result.toString();
+        qDebug() << "[Sender] JS Response:" << respStr.left(500);
+
+        auto doc = QJsonDocument::fromJson(respStr.toUtf8());
+        auto obj = doc.object();
+
+        if (obj.contains("error")) {
+            callback(false, obj["error"].toString());
             return;
         }
-        QByteArray respData = reply->readAll();
-        qDebug() << "[Sender] Response:" << QString::fromUtf8(respData.left(500));
-        auto doc = QJsonDocument::fromJson(respData);
-        auto obj = doc.object();
+
         int statusCode = obj.value("status_code").toInt(-1);
         if (statusCode == 0) {
             callback(true, "");
         } else {
             QString msg = obj.value("data").toObject().value("prompts").toString();
+            if (msg.isEmpty()) msg = obj.value("status_message").toString();
             if (msg.isEmpty()) msg = QString("status_code=%1").arg(statusCode);
             callback(false, msg);
         }
@@ -93,10 +96,15 @@ void BarrageSender::sendBarrage(const QString& text) {
         emit logMessage("[弹幕发送失败] 未登录");
         return;
     }
+    if (!m_webView) {
+        emit barrageFailed(text, "WebView 未初始化");
+        emit logMessage("[弹幕发送失败] WebView 未初始化");
+        return;
+    }
     QMap<QString, QString> params;
     params["content"] = text;
 
-    postToEndpoint("https://live.douyin.com/webcast/room/chat/", params,
+    postViaWebView("https://live.douyin.com/webcast/room/chat/", params,
         [this, text](bool ok, const QString& err) {
             if (ok) {
                 emit barrageSent(text);
@@ -114,13 +122,19 @@ void BarrageSender::sendLike() {
         emit logMessage("[点赞失败] 未登录");
         return;
     }
+    if (!m_webView) {
+        emit likeFailed("WebView 未初始化");
+        emit logMessage("[点赞失败] WebView 未初始化");
+        return;
+    }
     QMap<QString, QString> params;
     params["click_content"] = "";
 
-    postToEndpoint("https://live.douyin.com/webcast/room/like/", params,
+    postViaWebView("https://live.douyin.com/webcast/room/like/", params,
         [this](bool ok, const QString& err) {
             if (ok) {
                 emit likeSent();
+                emit logMessage("[点赞成功]");
             } else {
                 emit likeFailed(err);
                 emit logMessage(QString("[点赞失败] %1").arg(err));
